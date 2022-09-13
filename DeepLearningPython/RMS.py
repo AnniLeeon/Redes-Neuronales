@@ -44,7 +44,7 @@ class Network(object):
             a = sigmoid(np.dot(w, a)+b)
         return a
 
-    def SGD(self, training_data, epochs, mini_batch_size, eta,
+    def RMS(self, training_data, epochs, mini_batch_size, eta, beta, epsilon,
             test_data=None):
         """Train the neural network using mini-batch stochastic
         gradient descent.  The ``training_data`` is a list of tuples
@@ -68,27 +68,31 @@ class Network(object):
                 training_data[k:k+mini_batch_size]
                 for k in range(0, n, mini_batch_size)]
             for mini_batch in mini_batches:
-                self.update_mini_batch(mini_batch, eta)
+                self.update_mini_batch(mini_batch, eta, beta, epsilon)
             if test_data:
                 print("Epoch {} : {} / {}".format(j,self.evaluate(test_data),n_test))
             else:
                 print("Epoch {} complete".format(j))
 
-    def update_mini_batch(self, mini_batch, eta):
+    def update_mini_batch(self, mini_batch, eta, beta, epsilon):
         """Update the network's weights and biases by applying
         gradient descent using backpropagation to a single mini batch.
         The ``mini_batch`` is a list of tuples ``(x, y)``, and ``eta``
         is the learning rate."""
         nabla_b = [np.zeros(b.shape) for b in self.biases]
         nabla_w = [np.zeros(w.shape) for w in self.weights]
+        nabla_bo = [np.zeros(bo.shape) for bo in self.biases]
+        nabla_wo = [np.zeros(wo.shape) for wo in self.weights]
         for x, y in mini_batch:
             delta_nabla_b, delta_nabla_w = self.backprop(x, y)
             nabla_b = [nb+dnb for nb, dnb in zip(nabla_b, delta_nabla_b)]
             nabla_w = [nw+dnw for nw, dnw in zip(nabla_w, delta_nabla_w)]
-        self.weights = [w-(eta/len(mini_batch))*nw
-                        for w, nw in zip(self.weights, nabla_w)]
-        self.biases = [b-(eta/len(mini_batch))*nb
-                       for b, nb in zip(self.biases, nabla_b)]
+            nabla_bo = [(beta * g) + ((1-beta)/len(mini_batch))*(C**2) for g, C in zip(nabla_bo, delta_nabla_b)]
+            nabla_wo= [(beta * e)+((1-beta)/len(mini_batch))*(E**2) for e, E in zip(nabla_wo, delta_nabla_w)]
+        self.weights = [w-(eta/len(mini_batch)*(np.sqrt(ro))+epsilon)*nw
+                        for w, nw, ro in zip(self.weights, nabla_w, nabla_wo)]
+        self.biases = [b-(eta/len(mini_batch)*(np.sqrt(na))+epsilon)*nb
+                       for b, nb, na in zip(self.biases, nabla_b, nabla_bo)]
 
     def backprop(self, x, y):
         """Return a tuple ``(nabla_b, nabla_w)`` representing the
@@ -147,3 +151,4 @@ def sigmoid(z):
 def sigmoid_prime(z):
     """Derivative of the sigmoid function."""
     return sigmoid(z)*(1-sigmoid(z))
+
